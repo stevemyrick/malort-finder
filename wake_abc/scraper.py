@@ -8,7 +8,7 @@ from .results import Location, Product
 
 WEBSITE_URL = "https://wakeabc.com/search-our-inventory/"
 
-# A cache of results keyed on produce_name
+# A cache of results keyed on product_name
 _cache = {}
 
 def _search_inventory(product_name: str) -> dict:
