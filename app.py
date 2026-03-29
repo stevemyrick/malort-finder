@@ -20,10 +20,18 @@ app.config["JSON_SORT_KEYS"] = False
 # Security headers
 # ---------------------------------------------------------------------------
 
+ALLOWED_FRAME_ORIGINS = "https://www.stevemyrick.com https://stevemyrick.com"
+
 @app.after_request
 def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    # Allow embedding from stevemyrick.com only; DENY for everyone else.
+    # X-Frame-Options can only express one origin, so we use CSP frame-ancestors
+    # which supersedes it in modern browsers.
+    response.headers["Content-Security-Policy"] = (
+        f"frame-ancestors {ALLOWED_FRAME_ORIGINS}"
+    )
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"  # legacy fallback
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     # Restrict the API to same-origin fetches only
     if response.content_type == "application/json":
