@@ -250,6 +250,24 @@ header {
     text-decoration: underline;
 }
 
+footer {
+    background: #2c1810;
+    color: #d4a843;
+    text-align: center;
+    font-size: 0.78rem;
+    padding: 0.5rem 1rem;
+    flex-shrink: 0;
+}
+
+footer a {
+    color: #f5c518;
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .main-container {
