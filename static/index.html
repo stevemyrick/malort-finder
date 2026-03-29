@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Malört Finder — Find Your Nearest Regret</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <img src="/static/malort-logo.png" alt="Jeppson's Malört" class="header-logo" />
+            <div class="header-text">
+                <h1>Malört Finder</h1>
+                <p class="tagline">Find your nearest regret — Wake County ABC stores only.</p>
+            </div>
+        </div>
+        <div id="product-info" class="product-info hidden"></div>
+    </header>
+
+    <div class="search-bar">
+        <input type="text" id="address-input" placeholder="Enter an address to find nearby stores..." />
+        <button id="search-btn">Search</button>
+        <button id="locate-btn" title="Use my location">📍 Use My Location</button>
+    </div>
+
+    <div class="main-container">
+        <div id="map"></div>
+        <div id="sidebar">
+            <h2>Nearby Stores</h2>
+            <div id="store-list">
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Searching for suffering...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

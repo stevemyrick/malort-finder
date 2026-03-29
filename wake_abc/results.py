@@ -7,19 +7,46 @@ class Location:
     def address(self) -> str:
         """The address of the location."""
         return self._address
-    
+
     @property
     def stock_count(self) -> int:
         """The amount in stock."""
         return self._stock_count
-    
+
+    @property
+    def lat(self) -> float | None:
+        return self._lat
+
+    @lat.setter
+    def lat(self, value: float | None):
+        self._lat = value
+
+    @property
+    def lng(self) -> float | None:
+        return self._lng
+
+    @lng.setter
+    def lng(self, value: float | None):
+        self._lng = value
+
     def __repr__(self) -> str:
         """String representation."""
         return f"{self._address} -> {self._stock_count} in stock!"
 
-    def __init__(self, address: str, stock_count: int):
+    def __init__(self, address: str, stock_count: int, lat: float | None = None, lng: float | None = None):
         self._address = address
         self._stock_count = stock_count
+        self._lat = lat
+        self._lng = lng
+
+    def to_dict(self) -> dict:
+        return {
+            "address": self._address,
+            "stock_count": self._stock_count,
+            "lat": self._lat,
+            "lng": self._lng,
+            "has_stock": self._stock_count > 0,
+        }
 
 class Product:
     """Defines a product."""
@@ -47,3 +74,10 @@ class Product:
         self._price_lookup_code = price_lookup_code
         self._price = price
         self._volume = volume
+
+    def to_dict(self) -> dict:
+        return {
+            "plu": self._price_lookup_code,
+            "price": self._price,
+            "volume": self._volume,
+        }

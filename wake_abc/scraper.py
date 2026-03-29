@@ -1,61 +1,114 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+"""Scrape Wake ABC inventory using plain HTTP requests + BeautifulSoup.
+
+The Wake ABC site renders results server-side: POST productSearch to
+/search-results/ and parse the returned HTML — no browser required.
+"""
+
+import requests
+from bs4 import BeautifulSoup
 
 from .results import Location, Product
+from . import cache
 
-WEBSITE_URL = "https://wakeabc.com/search-our-inventory/"
+SEARCH_URL = "https://wakeabc.com/search-results/"
+CACHE_KEY_PREFIX = "inventory:"
 
-# A cache of results keyed on product_name
-_cache = {}
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+}
+
 
 def _search_inventory(product_name: str) -> dict:
-    if product_name in _cache:
-        return _cache[product_name]
+    cache_key = CACHE_KEY_PREFIX + product_name.lower()
+    cached = cache.get(cache_key, ttl=cache.INVENTORY_TTL)
+    if cached:
+        locations = [Location(l["address"], l["stock_count"]) for l in cached["locations"]]
+        p = cached["product"]
+        product = Product(p["plu"], p["price"], p["volume"])
+        return {Location: locations, Product: product}
 
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    driver = webdriver.Chrome(chrome_options)
-    driver.get(WEBSITE_URL)
-    wait = WebDriverWait(driver, 10)
+    resp = requests.post(
+        SEARCH_URL,
+        data={"productSearch": product_name},
+        headers=_HEADERS,
+        timeout=9,   # Stay under Vercel's 10 s free-tier limit
+        allow_redirects=True,
+    )
+    resp.raise_for_status()
 
-    search_box = driver.find_element(By.NAME, "productSearch")
-    search_box.send_keys(product_name)
-    search_button = driver.find_element(By.CSS_SELECTOR, "form.wake-inv-search").find_element(By.CSS_SELECTOR, "input[type='submit']")
-    search_button.click()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    results_container = soup.find("div", id="productSearchResults")
 
-    first_product_result = driver.find_element(By.XPATH, "//div[@id='productSearchResults']/div[2]")
-    show_first_product_button = first_product_result.find_element(By.CLASS_NAME, "collapse-heading")
-    show_first_product_button.click()
-    result_items = first_product_result.find_element(By.TAG_NAME, "ul").find_elements(By.TAG_NAME, "li")
+    if not results_container:
+        raise RuntimeError("Could not find #productSearchResults in the Wake ABC response.")
 
-    results = {Location: [], Product: None}
-    wait.until(EC.visibility_of(result_items[-1].find_elements(By.TAG_NAME, "span")[0]))
-    for item in result_items:
-        raw_data = item.find_elements(By.TAG_NAME, "span")
-        address = raw_data[0].text.replace("\n", " ")
-        count = raw_data[1].text.split(" ", 1)[0]
-        results[Location].append(Location(address, int(count)))
-    
-    product_details = first_product_result.find_element(By.CLASS_NAME, "wake-product").find_elements(By.TAG_NAME, "p")
-    price_lookup_code = product_details[0].find_element(By.TAG_NAME, "small").text.split(" ", 1)[1]
-    product_values = product_details[1].find_elements(By.TAG_NAME, "span")
-    price = product_values[0].text.split(" ", 1)[0]
-    volume = product_values[1].text.split("L")[0]
-    results[Product] = Product(price_lookup_code, float(price), float(volume))
+    product_row = results_container.find("div", class_="product-row")
+    if not product_row:
+        raise RuntimeError(f"No results found for '{product_name}'.")
 
-    _cache[product_name] = results
-    return results
+    wake_product = product_row.find("div", class_="wake-product")
+
+    # --- Product details ---
+    plu = ""
+    small = wake_product.find("small") if wake_product else None
+    if small:
+        plu = small.get_text(strip=True).replace("PLU:", "").strip()
+
+    price = 0.0
+    price_span = wake_product.find("span", class_="price") if wake_product else None
+    if price_span:
+        try:
+            price = float(price_span.get_text(strip=True).split()[0])
+        except (ValueError, IndexError):
+            pass
+
+    volume = 0.0
+    size_span = wake_product.find("span", class_="size") if wake_product else None
+    if size_span:
+        try:
+            volume = float(size_span.get_text(strip=True).replace("L", ""))
+        except (ValueError, IndexError):
+            pass
+
+    product = Product(plu, price, volume)
+
+    # --- Store locations ---
+    locations: list[Location] = []
+    ul = wake_product.find("ul") if wake_product else None
+    if ul:
+        for li in ul.find_all("li"):
+            addr_span = li.find("span", class_="address")
+            qty_span = li.find("span", class_="quantity")
+            if not addr_span or not qty_span:
+                continue
+            address = addr_span.get_text(separator=" ", strip=True)
+            try:
+                count = int(qty_span.get_text(strip=True).split()[0])
+            except (ValueError, IndexError):
+                count = 0
+            locations.append(Location(address, count))
+
+    cache.set(cache_key, {
+        "locations": [{"address": l.address, "stock_count": l.stock_count} for l in locations],
+        "product": product.to_dict(),
+    })
+
+    return {Location: locations, Product: product}
+
 
 def get_inventory(product_name: str) -> list[Location]:
-    results = _search_inventory(product_name)
-    return results[Location]
+    return _search_inventory(product_name)[Location]
+
 
 def get_product(product_name: str) -> Product:
-    results = _search_inventory(product_name)
-    return results[Product]
+    return _search_inventory(product_name)[Product]
 
-def clear_cache():
-    _cache = {}
+
+def clear_cache() -> None:
+    cache.clear()
