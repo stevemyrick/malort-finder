@@ -20,7 +20,7 @@ app.config["JSON_SORT_KEYS"] = False
 # Security headers
 # ---------------------------------------------------------------------------
 
-ALLOWED_FRAME_ORIGINS = "https://www.stevemyrick.com https://stevemyrick.com"
+ALLOWED_FRAME_ORIGINS = "https://www.stevemyrick.com https://stevemyrick.com https://regretlocator.com https://www.regretlocator.com"
 
 @app.after_request
 def add_security_headers(response):
